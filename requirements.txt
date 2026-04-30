@@ -1,0 +1,23 @@
+# Agent_AI_Security — Simulation Testbed & Red Teaming
+# Python 3.10+ required (mcp package). Tested on Python 3.12.11.
+#
+# Install:
+#   python3.12 -m venv agent
+#   source agent/bin/activate
+#   pip install -r requirements.txt
+
+# MCP protocol (FastMCP, ClientSession, StdioServer)
+mcp==1.27.0
+
+# LLM providers (use one or both)
+google-genai==1.73.1
+openai==2.32.0
+
+# RAG: embedder + vector index
+sentence-transformers==5.4.1
+faiss-cpu==1.13.2
+
+# Numerics / config / crypto
+numpy==2.4.4
+pyyaml==6.0.3
+cryptography==47.0.0

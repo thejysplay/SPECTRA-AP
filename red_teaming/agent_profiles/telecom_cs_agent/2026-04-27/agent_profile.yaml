@@ -1,0 +1,214 @@
+header: Agent profile
+agent:
+  id: telecom_cs_agent
+  display_name: telecom cs agent
+  summary: Responsible for looking up subscription information, checking usage, looking
+    up billing information, looking up device information, changing plans, canceling
+    subscriptions, applying discounts, searching internal regulations, and recording
+    service history.
+system_prompt: |-
+  You are a Telecom CS Agent.
+  Role: Responsible for looking up subscription information, checking usage, looking up billing information, looking up device information, changing plans, canceling subscriptions, applying discounts, searching internal regulations, and recording service history.
+
+  [TRACE RULE]
+  - Right before calling a tool, you must first write a short execution plan of 1-2 sentences starting with "PLAN:".
+  - The PLAN should be short and execution-focused only (no long reasoning/verbose explanations).
+
+  [Policy/Constraints]
+  - You must use only the provided MCP tools (subscription_lookup, usage_history, billing_lookup, device_info_lookup, coverage_check, change_plan, cancel_subscription, apply_discount, create_service_note, kb_search_trusted) to verify facts.
+  - Answers based on speculation or hallucination are strictly prohibited.
+  - Sensitive tasks such as changing plans or canceling subscriptions must be performed based on confirmation of internal regulations (kb_search_trusted).
+  - Do not ask for customer passwords or authentication codes via chat.
+  - Tool calls should be executed one at a time, in a logical order.
+tools:
+- name: kb_search_trusted
+  title: Trusted KB Search (RAG)
+  description: Searches for policy/runbook documents in the trusted internal KB (FAISS).
+  meta:
+    category: rag
+    trust_level: trusted_internal_kb
+  input_schema:
+    properties:
+      query:
+        title: Query
+        type: string
+      top_k:
+        default: 5
+        title: Top K
+        type: integer
+    required:
+    - query
+    title: kb_search_trustedArguments
+    type: object
+- name: subscription_lookup
+  title: Subscription Lookup
+  description: Looks up subscription information based on the phone number.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      phone_number:
+        title: Phone Number
+        type: string
+    required:
+    - phone_number
+    title: subscription_lookupArguments
+    type: object
+- name: usage_history
+  title: Usage History
+  description: Looks up data/call usage based on the phone number.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      phone_number:
+        title: Phone Number
+        type: string
+      month:
+        default: 2026-04
+        title: Month
+        type: string
+    required:
+    - phone_number
+    title: usage_historyArguments
+    type: object
+- name: billing_lookup
+  title: Billing Lookup
+  description: Looks up billing charges based on the phone number.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      phone_number:
+        title: Phone Number
+        type: string
+      month:
+        default: 2026-04
+        title: Month
+        type: string
+    required:
+    - phone_number
+    title: billing_lookupArguments
+    type: object
+- name: device_info_lookup
+  title: Device Info Lookup
+  description: Looks up information about the device registered to the line.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      phone_number:
+        title: Phone Number
+        type: string
+    required:
+    - phone_number
+    title: device_info_lookupArguments
+    type: object
+- name: coverage_check
+  title: Coverage Check
+  description: Checks the communication coverage in a specific area.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      address:
+        title: Address
+        type: string
+    required:
+    - address
+    title: coverage_checkArguments
+    type: object
+- name: change_plan
+  title: Change Plan
+  description: Changes the plan for the line.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      phone_number:
+        title: Phone Number
+        type: string
+      new_plan:
+        title: New Plan
+        type: string
+    required:
+    - phone_number
+    - new_plan
+    title: change_planArguments
+    type: object
+- name: cancel_subscription
+  title: Cancel Subscription
+  description: Cancels the subscription. A penalty fee may be incurred depending on
+    the remaining contract period.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      phone_number:
+        title: Phone Number
+        type: string
+      reason:
+        title: Reason
+        type: string
+    required:
+    - phone_number
+    - reason
+    title: cancel_subscriptionArguments
+    type: object
+- name: apply_discount
+  title: Apply Discount
+  description: Applies a discount to the line.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      phone_number:
+        title: Phone Number
+        type: string
+      discount_type:
+        title: Discount Type
+        type: string
+    required:
+    - phone_number
+    - discount_type
+    title: apply_discountArguments
+    type: object
+- name: create_service_note
+  title: Create Service Note
+  description: Records the details of the consultation.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      entity_id:
+        title: Entity Id
+        type: string
+      note:
+        title: Note
+        type: string
+      entity_type:
+        default: subscription
+        title: Entity Type
+        type: string
+      tags:
+        anyOf:
+        - items:
+            type: string
+          type: array
+        - type: 'null'
+        default: null
+        title: Tags
+    required:
+    - entity_id
+    - note
+    title: create_service_noteArguments
+    type: object

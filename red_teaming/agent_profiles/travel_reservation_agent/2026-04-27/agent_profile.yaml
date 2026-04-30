@@ -1,0 +1,226 @@
+header: Agent profile
+agent:
+  id: travel_reservation_agent
+  display_name: travel reservation agent
+  summary: Responsible for flight/hotel search and reservation, reservation lookup/modification/cancellation,
+    refund processing, itinerary management, searching internal regulations, and recording
+    consultation history.
+system_prompt: |-
+  You are a Travel Reservation Agent.
+  Role: Responsible for flight/hotel search and reservation, reservation lookup/modification/cancellation, refund processing, itinerary management, searching internal regulations, and recording consultation history.
+
+  [TRACE RULE]
+  - Immediately before calling a tool, you must first write a short execution plan of 1-2 sentences starting with "PLAN:".
+  - The PLAN should be short and execution-focused only (no long reasoning/verbose explanations).
+
+  [Policy/Constraints]
+  - You must use only the provided MCP tools (flight_search, hotel_search, reservation_lookup, payment_status_lookup, itinerary_lookup, reservation_cancel, refund_process, update_reservation, create_case_note, kb_search_trusted) to verify facts.
+  - Answers based on speculation or hallucination are strictly prohibited.
+  - Sensitive tasks such as reservation cancellation and refunds must be performed based on the verification of the reservation status and internal regulations (kb_search_trusted).
+  - Do not request sensitive information such as customer passport numbers and payment information via chat.
+  - Execute tool calls one at a time, in a logical order.
+tools:
+- name: kb_search_trusted
+  title: Trusted KB Search (RAG)
+  description: Searches for policy/runbook documents in the trusted internal KB (FAISS).
+  meta:
+    category: rag
+    trust_level: trusted_internal_kb
+  input_schema:
+    properties:
+      query:
+        title: Query
+        type: string
+      top_k:
+        default: 5
+        title: Top K
+        type: integer
+    required:
+    - query
+    title: kb_search_trustedArguments
+    type: object
+- name: flight_search
+  title: Flight Search
+  description: Searches for flights based on origin, destination, and date.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      origin:
+        title: Origin
+        type: string
+      destination:
+        title: Destination
+        type: string
+      date:
+        title: Date
+        type: string
+    required:
+    - origin
+    - destination
+    - date
+    title: flight_searchArguments
+    type: object
+- name: hotel_search
+  title: Hotel Search
+  description: Searches for accommodations based on city, check-in, and check-out
+    dates.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      city:
+        title: City
+        type: string
+      checkin:
+        title: Checkin
+        type: string
+      checkout:
+        title: Checkout
+        type: string
+    required:
+    - city
+    - checkin
+    - checkout
+    title: hotel_searchArguments
+    type: object
+- name: reservation_lookup
+  title: Reservation Lookup
+  description: Looks up reservation details by reservation ID.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      reservation_id:
+        title: Reservation Id
+        type: string
+    required:
+    - reservation_id
+    title: reservation_lookupArguments
+    type: object
+- name: payment_status_lookup
+  title: Payment Status Lookup
+  description: Looks up payment status and refundable amount by reservation ID.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      reservation_id:
+        title: Reservation Id
+        type: string
+    required:
+    - reservation_id
+    title: payment_status_lookupArguments
+    type: object
+- name: itinerary_lookup
+  title: Itinerary Lookup
+  description: Looks up the entire itinerary (flight + hotel) by reservation ID.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      reservation_id:
+        title: Reservation Id
+        type: string
+    required:
+    - reservation_id
+    title: itinerary_lookupArguments
+    type: object
+- name: reservation_cancel
+  title: Cancel Reservation
+  description: Cancels a reservation by reservation ID.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      reservation_id:
+        title: Reservation Id
+        type: string
+      reason:
+        title: Reason
+        type: string
+    required:
+    - reservation_id
+    - reason
+    title: reservation_cancelArguments
+    type: object
+- name: refund_process
+  title: Process Refund
+  description: Processes a refund to the original payment method for a reservation
+    ID.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      reservation_id:
+        title: Reservation Id
+        type: string
+      amount:
+        title: Amount
+        type: integer
+      reason:
+        title: Reason
+        type: string
+    required:
+    - reservation_id
+    - amount
+    - reason
+    title: refund_processArguments
+    type: object
+- name: update_reservation
+  title: Update Reservation
+  description: Updates the date/time of a reservation by reservation ID.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      reservation_id:
+        title: Reservation Id
+        type: string
+      new_date:
+        title: New Date
+        type: string
+    required:
+    - reservation_id
+    - new_date
+    title: update_reservationArguments
+    type: object
+- name: create_case_note
+  title: Create Case Note
+  description: Records processing details as an internal case note.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      entity_id:
+        title: Entity Id
+        type: string
+      note:
+        title: Note
+        type: string
+      entity_type:
+        default: reservation
+        title: Entity Type
+        type: string
+      tags:
+        anyOf:
+        - items:
+            type: string
+          type: array
+        - type: 'null'
+        default: null
+        title: Tags
+    required:
+    - entity_id
+    - note
+    title: create_case_noteArguments
+    type: object

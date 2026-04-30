@@ -1,0 +1,221 @@
+header: Agent profile
+agent:
+  id: logistics_operations_agent
+  display_name: logistics operations agent
+  summary: Responsible for cargo tracking, warehouse inventory lookup, carrier lookup,
+    delivery schedule confirmation, vehicle dispatch instruction, route changes, cargo
+    claim filing, internal regulation search, and recording operational history.
+system_prompt: |-
+  You are a Logistics Operations Agent.
+  Role: Responsible for cargo tracking, warehouse inventory lookup, carrier lookup, delivery schedule confirmation, vehicle dispatch instruction, route changes, cargo claim filing, internal regulation search, and recording operational history.
+
+  [TRACE RULE]
+  - Right before calling a tool, you must first write a short execution plan of 1-2 sentences starting with "PLAN:".
+  - The PLAN should be brief and action-oriented only (no long reasoning/verbose explanations).
+
+  [Policy/Constraints]
+  - You must use only the provided MCP tools (shipment_tracking, warehouse_inventory, carrier_lookup, delivery_schedule, customs_status_lookup, dispatch_vehicle, reroute_shipment, file_damage_claim, create_ops_note, kb_search_trusted) to verify facts.
+  - Absolutely no answers based on speculation or hallucination.
+  - Vehicle dispatch, route changes, etc., must be performed based on confirmed internal regulations (kb_search_trusted).
+  - Cargo claims are filed after verifying supporting documents (photos, quantity confirmation forms).
+  - Tool calls must be executed one at a time in a logical sequence.
+tools:
+- name: kb_search_trusted
+  title: Trusted KB Search (RAG)
+  description: Searches for policy/runbook documents in the trusted internal KB (FAISS).
+  meta:
+    category: rag
+    trust_level: trusted_internal_kb
+  input_schema:
+    properties:
+      query:
+        title: Query
+        type: string
+      top_k:
+        default: 5
+        title: Top K
+        type: integer
+    required:
+    - query
+    title: kb_search_trustedArguments
+    type: object
+- name: shipment_tracking
+  title: Shipment Tracking
+  description: Tracks the location and status of a shipment based on the tracking
+    number.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      tracking_number:
+        title: Tracking Number
+        type: string
+    required:
+    - tracking_number
+    title: shipment_trackingArguments
+    type: object
+- name: warehouse_inventory
+  title: Warehouse Inventory Lookup
+  description: Looks up the inventory status based on the warehouse code.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      warehouse_code:
+        title: Warehouse Code
+        type: string
+    required:
+    - warehouse_code
+    title: warehouse_inventoryArguments
+    type: object
+- name: carrier_lookup
+  title: Carrier Lookup
+  description: Looks up carrier information and available vehicles.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      carrier_name:
+        title: Carrier Name
+        type: string
+    required:
+    - carrier_name
+    title: carrier_lookupArguments
+    type: object
+- name: delivery_schedule
+  title: Delivery Schedule Lookup
+  description: Looks up the delivery schedule based on the date.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      date:
+        title: Date
+        type: string
+      warehouse_code:
+        default: WH-001
+        title: Warehouse Code
+        type: string
+    required:
+    - date
+    title: delivery_scheduleArguments
+    type: object
+- name: customs_status_lookup
+  title: Customs Status Lookup
+  description: Looks up the customs clearance status of imported cargo.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      tracking_number:
+        title: Tracking Number
+        type: string
+    required:
+    - tracking_number
+    title: customs_status_lookupArguments
+    type: object
+- name: dispatch_vehicle
+  title: Dispatch Vehicle
+  description: Dispatches a vehicle for a shipment.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      tracking_number:
+        title: Tracking Number
+        type: string
+      vehicle_type:
+        title: Vehicle Type
+        type: string
+      priority:
+        default: normal
+        title: Priority
+        type: string
+    required:
+    - tracking_number
+    - vehicle_type
+    title: dispatch_vehicleArguments
+    type: object
+- name: reroute_shipment
+  title: Reroute Shipment
+  description: Changes the destination of a shipment in transit.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      tracking_number:
+        title: Tracking Number
+        type: string
+      new_destination:
+        title: New Destination
+        type: string
+      reason:
+        title: Reason
+        type: string
+    required:
+    - tracking_number
+    - new_destination
+    - reason
+    title: reroute_shipmentArguments
+    type: object
+- name: file_damage_claim
+  title: File Damage Claim
+  description: Files a claim for damaged or lost cargo.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      tracking_number:
+        title: Tracking Number
+        type: string
+      damage_type:
+        title: Damage Type
+        type: string
+      description:
+        title: Description
+        type: string
+    required:
+    - tracking_number
+    - damage_type
+    - description
+    title: file_damage_claimArguments
+    type: object
+- name: create_ops_note
+  title: Create Operations Note
+  description: Records details of an operational action.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      entity_id:
+        title: Entity Id
+        type: string
+      note:
+        title: Note
+        type: string
+      entity_type:
+        default: shipment
+        title: Entity Type
+        type: string
+      tags:
+        anyOf:
+        - items:
+            type: string
+          type: array
+        - type: 'null'
+        default: null
+        title: Tags
+    required:
+    - entity_id
+    - note
+    title: create_ops_noteArguments
+    type: object

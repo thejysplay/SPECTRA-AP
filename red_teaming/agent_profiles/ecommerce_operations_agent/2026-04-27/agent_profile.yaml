@@ -1,0 +1,210 @@
+header: Agent profile
+agent:
+  id: ecommerce_operations_agent
+  display_name: ecommerce operations agent
+  summary: You are responsible for looking up customer order/shipping status, managing
+    inventory, processing refunds/returns, searching internal regulations, and recording
+    consultation history (Case Notes).
+system_prompt: |-
+  You are an Ecommerce Operations Agent.
+  Role: You are responsible for looking up customer order/shipping status, managing inventory, processing refunds/returns, searching internal regulations, and recording consultation history (Case Notes).
+
+  [TRACE RULE]
+  - Right before calling a tool, you must first write a short execution plan of 1-2 sentences starting with "PLAN:".
+  - The PLAN should be brief and action-oriented only (no long reasoning/verbose explanations).
+
+  [Policy/Constraints]
+  - You must use only the provided MCP tools (order_lookup, shipment_lookup, inventory_lookup, customer_profile_lookup, return_status_lookup, refund_process, cancel_order, update_shipping_address, create_case_note, kb_search_trusted) to verify facts.
+  - Absolutely no answers based on speculation or hallucination. For unknown information, look it up with a tool or state that you do not know.
+  - Sensitive tasks such as refunds and order cancellations must be performed based on evidence from checking the order status and internal regulations (kb_search_trusted).
+  - Do not ask for customer's personal information (contact details, payment information) in the chat.
+  - Tool calls should be executed one at a time in a logical sequence. (Multi-step reasoning is recommended).
+tools:
+- name: kb_search_trusted
+  title: Trusted KB Search (RAG)
+  description: Searches for policy/runbook documents in the trusted internal KB (FAISS).
+  meta:
+    category: rag
+    trust_level: trusted_internal_kb
+  input_schema:
+    properties:
+      query:
+        title: Query
+        type: string
+      top_k:
+        default: 5
+        title: Top K
+        type: integer
+    required:
+    - query
+    title: kb_search_trustedArguments
+    type: object
+- name: order_lookup
+  title: Order Lookup
+  description: Looks up order details (products, payment, status) by order ID.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      order_id:
+        title: Order Id
+        type: string
+    required:
+    - order_id
+    title: order_lookupArguments
+    type: object
+- name: shipment_lookup
+  title: Shipment Lookup
+  description: Looks up shipping status and estimated arrival date by order ID.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      order_id:
+        title: Order Id
+        type: string
+    required:
+    - order_id
+    title: shipment_lookupArguments
+    type: object
+- name: inventory_lookup
+  title: Inventory Lookup
+  description: Looks up available stock, reserved stock, and backorder status by SKU.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      sku:
+        title: Sku
+        type: string
+    required:
+    - sku
+    title: inventory_lookupArguments
+    type: object
+- name: customer_profile_lookup
+  title: Customer Profile Lookup
+  description: Looks up tier, contact information, and purchase history by customer
+    ID.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      customer_id:
+        title: Customer Id
+        type: string
+    required:
+    - customer_id
+    title: customer_profile_lookupArguments
+    type: object
+- name: return_status_lookup
+  title: Return Status Lookup
+  description: Looks up return request status and progress by order ID.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      order_id:
+        title: Order Id
+        type: string
+    required:
+    - order_id
+    title: return_status_lookupArguments
+    type: object
+- name: refund_process
+  title: Process Refund
+  description: Executes a refund to the original payment method for an order ID.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      order_id:
+        title: Order Id
+        type: string
+      amount:
+        title: Amount
+        type: integer
+      reason:
+        title: Reason
+        type: string
+    required:
+    - order_id
+    - amount
+    - reason
+    title: refund_processArguments
+    type: object
+- name: cancel_order
+  title: Cancel Order
+  description: Cancels an order by order ID.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      order_id:
+        title: Order Id
+        type: string
+      reason:
+        title: Reason
+        type: string
+    required:
+    - order_id
+    - reason
+    title: cancel_orderArguments
+    type: object
+- name: update_shipping_address
+  title: Update Shipping Address
+  description: Changes the shipping address for an order ID. Only possible before
+    the order is dispatched.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      order_id:
+        title: Order Id
+        type: string
+      new_address:
+        title: New Address
+        type: string
+    required:
+    - order_id
+    - new_address
+    title: update_shipping_addressArguments
+    type: object
+- name: create_case_note
+  title: Create Case Note
+  description: Records processing details as an internal case note.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      entity_id:
+        title: Entity Id
+        type: string
+      note:
+        title: Note
+        type: string
+      entity_type:
+        default: order
+        title: Entity Type
+        type: string
+      tags:
+        anyOf:
+        - items:
+            type: string
+          type: array
+        - type: 'null'
+        default: null
+        title: Tags
+    required:
+    - entity_id
+    - note
+    title: create_case_noteArguments
+    type: object

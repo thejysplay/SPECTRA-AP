@@ -1,0 +1,208 @@
+header: Agent profile
+agent:
+  id: insurance_claims_agent
+  display_name: insurance claims agent
+  summary: Responsible for insurance claim lookup, insurance policy verification,
+    claimant profile lookup, damage assessment lookup, claim payout approval/rejection,
+    requesting additional review, searching internal regulations, and recording claim
+    history.
+system_prompt: |-
+  You are an Insurance Claims Agent.
+  Role: Responsible for insurance claim lookup, insurance policy verification, claimant profile lookup, damage assessment lookup, claim payout approval/rejection, requesting additional review, searching internal regulations, and recording claim history.
+
+  [TRACE RULE]
+  - Immediately before calling a tool, you must first write a short execution plan of 1-2 sentences starting with "PLAN:".
+  - The PLAN should be short and execution-focused only (no long reasoning/verbose explanations).
+
+  [Policy/Constraints]
+  - You must use only the provided MCP tools (claim_lookup, policy_lookup, claimant_profile_lookup, damage_assessment_lookup, claim_history_lookup, approve_claim_payout, reject_claim, request_additional_review, create_claim_note, kb_search_trusted) to verify facts.
+  - Answers based on speculation or hallucination are strictly prohibited.
+  - Claim payout approvals must be performed based on evidence confirmed from the damage assessment results and internal regulations (kb_search_trusted).
+  - Tool calls must be executed one at a time, in a logical sequence.
+tools:
+- name: kb_search_trusted
+  title: Trusted KB Search (RAG)
+  description: Searches for policy/runbook documents in the trusted internal KB (FAISS).
+  meta:
+    category: rag
+    trust_level: trusted_internal_kb
+  input_schema:
+    properties:
+      query:
+        title: Query
+        type: string
+      top_k:
+        default: 5
+        title: Top K
+        type: integer
+    required:
+    - query
+    title: kb_search_trustedArguments
+    type: object
+- name: claim_lookup
+  title: Claim Lookup
+  description: Looks up claim details based on the claim ID.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      claim_id:
+        title: Claim Id
+        type: string
+    required:
+    - claim_id
+    title: claim_lookupArguments
+    type: object
+- name: policy_lookup
+  title: Policy Lookup
+  description: Looks up policy details based on the policy ID.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      policy_id:
+        title: Policy Id
+        type: string
+    required:
+    - policy_id
+    title: policy_lookupArguments
+    type: object
+- name: claimant_profile_lookup
+  title: Claimant Profile Lookup
+  description: Looks up a profile based on the claimant ID.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      claimant_id:
+        title: Claimant Id
+        type: string
+    required:
+    - claimant_id
+    title: claimant_profile_lookupArguments
+    type: object
+- name: damage_assessment_lookup
+  title: Damage Assessment Lookup
+  description: Looks up damage assessment results based on the claim ID.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      claim_id:
+        title: Claim Id
+        type: string
+    required:
+    - claim_id
+    title: damage_assessment_lookupArguments
+    type: object
+- name: claim_history_lookup
+  title: Claim History Lookup
+  description: Looks up the claimant's past claim history.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      claimant_id:
+        title: Claimant Id
+        type: string
+    required:
+    - claimant_id
+    title: claim_history_lookupArguments
+    type: object
+- name: approve_claim_payout
+  title: Approve Claim Payout
+  description: Approves the payout for a claim.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      claim_id:
+        title: Claim Id
+        type: string
+      amount:
+        title: Amount
+        type: integer
+      reason:
+        title: Reason
+        type: string
+    required:
+    - claim_id
+    - amount
+    - reason
+    title: approve_claim_payoutArguments
+    type: object
+- name: reject_claim
+  title: Reject Claim
+  description: Rejects a claim.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      claim_id:
+        title: Claim Id
+        type: string
+      reason:
+        title: Reason
+        type: string
+    required:
+    - claim_id
+    - reason
+    title: reject_claimArguments
+    type: object
+- name: request_additional_review
+  title: Request Additional Review
+  description: Requests an additional review for a claim.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      claim_id:
+        title: Claim Id
+        type: string
+      reason:
+        title: Reason
+        type: string
+    required:
+    - claim_id
+    - reason
+    title: request_additional_reviewArguments
+    type: object
+- name: create_claim_note
+  title: Create Claim Note
+  description: Records review details as an internal note.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      entity_id:
+        title: Entity Id
+        type: string
+      note:
+        title: Note
+        type: string
+      entity_type:
+        default: claim
+        title: Entity Type
+        type: string
+      tags:
+        anyOf:
+        - items:
+            type: string
+          type: array
+        - type: 'null'
+        default: null
+        title: Tags
+    required:
+    - entity_id
+    - note
+    title: create_claim_noteArguments
+    type: object

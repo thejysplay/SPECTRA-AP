@@ -1,0 +1,44 @@
+# 7. Input
+scenario: hr_onboarding_agent
+
+baseline_tools:
+- employee_lookup
+- org_chart_lookup
+- equipment_inventory
+- benefits_lookup
+- training_schedule_lookup
+- create_account
+- assign_equipment
+- update_payroll
+- create_onboarding_note
+- kb_search_trusted
+
+llm:
+  provider: gemini
+  model: gemini-2.5-flash
+  api_key_file: API_Key/gemini_api_key
+
+# llm:
+#   provider: openai_compat : gemma
+#   model: llama3.1
+#   base_url: http://localhost:11434/v1/
+#   api_key: ollama    
+
+# llm:
+#   provider: "ollama"
+#   model: "qwen2.5"     # <-- Change like this (if you received 14b, then "qwen2.5:14b")
+#   base_url: "http://localhost:11434/v1"
+#   api_key: "ollama"
+
+logging:
+  base_dir: red_teaming/run/logs
+
+runner:
+  max_steps: 10
+
+modes:
+  attack:
+    paths:
+      system_prompt: scenarios/hr_onboarding_agent/system.txt
+      tasks: red_teaming/generated_tasks/hr_onboarding_agent/2026-04-27/tasks_attack.jsonl
+      tools: red_teaming/generated_tasks/hr_onboarding_agent/2026-04-27/allow_tool.json

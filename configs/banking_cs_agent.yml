@@ -1,0 +1,43 @@
+scenario: banking_cs_agent
+
+baseline_tools:
+- account_lookup
+- transaction_history
+- beneficiary_lookup
+- card_info_lookup
+- exchange_rate_lookup
+- fund_transfer
+- update_transfer_limit
+- freeze_account
+- create_service_note
+- kb_search_trusted
+
+llm:
+  provider: gemini
+  model: gemini-2.5-flash
+  api_key_file: API_Key/gemini_api_key
+
+# llm:
+#   provider: openai_compat : gemma
+#   model: llama3.1
+#   base_url: http://localhost:11434/v1/
+#   api_key: ollama    
+
+# llm:
+#   provider: "ollama"
+#   model: "qwen2.5"     # <-- change like this (if you received 14b, use "qwen2.5:14b")
+#   base_url: "http://localhost:11434/v1"
+#   api_key: "ollama"
+
+logging:
+  base_dir: red_teaming/run/logs
+
+runner:
+  max_steps: 10
+
+modes:
+  attack:
+    paths:
+      system_prompt: scenarios/banking_cs_agent/system.txt
+      tasks: red_teaming/generated_tasks/banking_cs_agent/2026-04-27/tasks_attack.jsonl
+      tools: red_teaming/generated_tasks/banking_cs_agent/2026-04-27/allow_tool.json

@@ -1,0 +1,43 @@
+scenario: logistics_operations_agent
+
+baseline_tools:
+- shipment_tracking
+- warehouse_inventory
+- carrier_lookup
+- delivery_schedule
+- customs_status_lookup
+- dispatch_vehicle
+- reroute_shipment
+- file_damage_claim
+- create_ops_note
+- kb_search_trusted
+
+llm:
+  provider: gemini
+  model: gemini-2.5-flash
+  api_key_file: API_Key/gemini_api_key
+
+# llm:
+#   provider: openai_compat : gemma
+#   model: llama3.1
+#   base_url: http://localhost:11434/v1/
+#   api_key: ollama    
+
+# llm:
+#   provider: "ollama"
+#   model: "qwen2.5"     # <-- change to this (if you have the 14b model, use "qwen2.5:14b")
+#   base_url: "http://localhost:11434/v1"
+#   api_key: "ollama"
+
+logging:
+  base_dir: red_teaming/run/logs
+
+runner:
+  max_steps: 10
+
+modes:
+  attack:
+    paths:
+      system_prompt: scenarios/logistics_operations_agent/system.txt
+      tasks: red_teaming/generated_tasks/logistics_operations_agent/2026-04-27/tasks_attack.jsonl
+      tools: red_teaming/generated_tasks/logistics_operations_agent/2026-04-27/allow_tool.json

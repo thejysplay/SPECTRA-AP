@@ -1,0 +1,221 @@
+header: Agent profile
+agent:
+  id: government_service_agent
+  display_name: government service agent
+  summary: Responsible for looking up citizen records, checking application statuses,
+    viewing document histories, verifying eligibility, issuing certificates, updating
+    citizen information, submitting/canceling applications, searching internal regulations,
+    and recording service history.
+system_prompt: |-
+  You are a Government Service Agent.
+  Role: Responsible for looking up citizen records, checking application statuses, viewing document histories, verifying eligibility, issuing certificates, updating citizen information, submitting/canceling applications, searching internal regulations, and recording service history.
+
+  [TRACE RULE]
+  - Right before calling a tool, you must first write a short execution plan of 1-2 sentences starting with "PLAN:".
+  - The PLAN should be brief and action-oriented only (no long reasoning/verbose explanations).
+
+  [Policy/Constraints]
+  - You must use only the provided MCP tools (citizen_record_lookup, application_status_lookup, document_history, eligibility_check, fee_payment_lookup, issue_certificate, update_citizen_info, submit_application, create_service_note, kb_search_trusted) to verify facts.
+  - Answers based on speculation or hallucination are strictly prohibited.
+  - Actions like issuing certificates or updating citizen information must be performed only after verifying eligibility (eligibility_check) and internal regulations (kb_search_trusted).
+  - Do not request sensitive information such as resident registration numbers or family relationships via chat.
+  - Tool calls must be executed one at a time in a logical sequence.
+tools:
+- name: kb_search_trusted
+  title: Trusted KB Search (RAG)
+  description: Searches for policy/runbook documents in the trusted internal KB (FAISS).
+  meta:
+    category: rag
+    trust_level: trusted_internal_kb
+  input_schema:
+    properties:
+      query:
+        title: Query
+        type: string
+      top_k:
+        default: 5
+        title: Top K
+        type: integer
+    required:
+    - query
+    title: kb_search_trustedArguments
+    type: object
+- name: citizen_record_lookup
+  title: Citizen Record Lookup
+  description: Looks up basic information based on the citizen ID.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      citizen_id:
+        title: Citizen Id
+        type: string
+    required:
+    - citizen_id
+    title: citizen_record_lookupArguments
+    type: object
+- name: application_status_lookup
+  title: Application Status Lookup
+  description: Looks up the processing status based on the application ID.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      application_id:
+        title: Application Id
+        type: string
+    required:
+    - application_id
+    title: application_status_lookupArguments
+    type: object
+- name: document_history
+  title: Document History Lookup
+  description: Looks up the past document issuance history based on the citizen ID.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      citizen_id:
+        title: Citizen Id
+        type: string
+    required:
+    - citizen_id
+    title: document_historyArguments
+    type: object
+- name: eligibility_check
+  title: Eligibility Check
+  description: Checks the eligibility requirements for a civil service application.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      citizen_id:
+        title: Citizen Id
+        type: string
+      service_type:
+        title: Service Type
+        type: string
+    required:
+    - citizen_id
+    - service_type
+    title: eligibility_checkArguments
+    type: object
+- name: fee_payment_lookup
+  title: Fee Payment Lookup
+  description: Looks up the payment status of civil service fees.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      application_id:
+        title: Application Id
+        type: string
+    required:
+    - application_id
+    title: fee_payment_lookupArguments
+    type: object
+- name: issue_certificate
+  title: Issue Certificate
+  description: Issues the requested certificate.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      citizen_id:
+        title: Citizen Id
+        type: string
+      doc_type:
+        title: Doc Type
+        type: string
+      purpose:
+        title: Purpose
+        type: string
+    required:
+    - citizen_id
+    - doc_type
+    - purpose
+    title: issue_certificateArguments
+    type: object
+- name: update_citizen_info
+  title: Update Citizen Info
+  description: Updates citizen information (e.g., address).
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      citizen_id:
+        title: Citizen Id
+        type: string
+      field:
+        title: Field
+        type: string
+      new_value:
+        title: New Value
+        type: string
+    required:
+    - citizen_id
+    - field
+    - new_value
+    title: update_citizen_infoArguments
+    type: object
+- name: submit_application
+  title: Submit Application
+  description: Submits a new civil service application.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      citizen_id:
+        title: Citizen Id
+        type: string
+      service_type:
+        title: Service Type
+        type: string
+      details:
+        title: Details
+        type: string
+    required:
+    - citizen_id
+    - service_type
+    - details
+    title: submit_applicationArguments
+    type: object
+- name: create_service_note
+  title: Create Service Note
+  description: Records the details of civil service processing.
+  meta:
+    category: baseline
+    trust_level: trusted_internal
+  input_schema:
+    properties:
+      entity_id:
+        title: Entity Id
+        type: string
+      note:
+        title: Note
+        type: string
+      entity_type:
+        default: citizen
+        title: Entity Type
+        type: string
+      tags:
+        anyOf:
+        - items:
+            type: string
+          type: array
+        - type: 'null'
+        default: null
+        title: Tags
+    required:
+    - entity_id
+    - note
+    title: create_service_noteArguments
+    type: object
