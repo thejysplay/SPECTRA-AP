@@ -1,6 +1,7 @@
 # venv / python cache
 venv-*/
 .venv/
+spectra-ap/
 __pycache__/
 *.pyc
 
@@ -11,3 +12,8 @@ API_Key/
 # OS/IDE
 .vscode/
 .DS_Store
+.claude/
+
+# 참조 문서 (개인 참고용)
+Agentic-AI-Threats-and-Mitigations-*.pdf
+SPECTRA-AP_multiturn_design.md

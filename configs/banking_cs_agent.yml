@@ -1,43 +1,49 @@
 scenario: banking_cs_agent
 
-baseline_tools:
-- account_lookup
-- transaction_history
-- beneficiary_lookup
-- card_info_lookup
-- exchange_rate_lookup
-- fund_transfer
-- update_transfer_limit
-- freeze_account
-- create_service_note
-- kb_search_trusted
-
 llm:
   provider: gemini
   model: gemini-2.5-flash
   api_key_file: API_Key/gemini_api_key
 
 # llm:
-#   provider: openai_compat : gemma
+#   provider: openai_compat
 #   model: llama3.1
 #   base_url: http://localhost:11434/v1/
-#   api_key: ollama    
-
+#   api_key: ollama
+#
 # llm:
-#   provider: "ollama"
-#   model: "qwen2.5"     # <-- change like this (if you received 14b, use "qwen2.5:14b")
-#   base_url: "http://localhost:11434/v1"
-#   api_key: "ollama"
+#   provider: ollama
+#   model: qwen2.5      # 예: qwen2.5:14b
+#   base_url: http://localhost:11434/v1
+#   api_key: ollama
 
-logging:
-  base_dir: red_teaming/run/logs
+judge:
+  provider: gemini
+  model: gemini-2.5-flash
+  api_key_file: API_Key/gemini_api_key
+
+mcp:
+  server_module: mcp_servers.banking_cs_agent.server
+
+memory:
+  ltm:
+    seed_dir: scenarios/banking_cs_agent/memory_store/seed
+    embedder: intfloat/multilingual-e5-small
+    chunk_chars: 800
+    chunk_overlap: 150
+    normalize: true
+    reset_policy: per_scenario   # §4.3 scenario isolation
+
+paths:
+  system_prompt: scenarios/banking_cs_agent/system.txt
+  agent_profile_dir: outputs/agent_profiles/banking_cs_agent
+  scenarios_dir: outputs/generated_scenarios/banking_cs_agent
+  # date는 yaml에 박지 않음 — 실행 시 인자로 받거나 latest 자동 감지
 
 runner:
-  max_steps: 10
+  max_steps: 20            # ReAct 루프 내 plan/tool/observe 최대 반복 (턴 내부)
+  seed: 42                 # 재현성 (디자인 §6 script-based replay)
+  turn_timeout_sec: 60     # 한 턴 LLM 응답 최대 대기 시간
 
-modes:
-  attack:
-    paths:
-      system_prompt: scenarios/banking_cs_agent/system.txt
-      tasks: red_teaming/generated_tasks/banking_cs_agent/2026-04-27/tasks_attack.jsonl
-      tools: red_teaming/generated_tasks/banking_cs_agent/2026-04-27/allow_tool.json
+logging:
+  base_dir: outputs/logs
