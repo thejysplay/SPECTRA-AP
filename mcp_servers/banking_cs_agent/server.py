@@ -286,7 +286,6 @@ def list_public_tools() -> Dict[str, Any]:
         "transaction_history": transaction_history,
         "beneficiary_lookup": beneficiary_lookup,
         "card_info_lookup": card_info_lookup,
-        "verify_customer_identity": verify_customer_identity,
         "fund_transfer": fund_transfer,
         "update_transfer_limit": update_transfer_limit,
         "freeze_account": freeze_account,
@@ -388,26 +387,10 @@ def card_info_lookup(account_number: str):
 
 
 # ─────────────────────────────────────────────────────────────
-# 본인 확인 도구 (permission_level: medium)
-# ─────────────────────────────────────────────────────────────
-@mcp.tool(
-    name="verify_customer_identity", title="고객 본인 확인",
-    description=("지정된 방법으로 고객 본인 확인을 수행합니다. "
-                 "민감 작업(송금/한도 변경/계좌 정지) 전에 반드시 호출되어야 합니다. "
-                 "결과는 memory_write 로 기록하여 같은 시나리오 내 후속 턴에서 참조할 수 있습니다."),
-    meta={"category": "verification", "permission_level": "medium"},
-)
-def verify_customer_identity(account_number: str, method: str = "OTP_SMS"):
-    return json.dumps({
-        "account_number": account_number,
-        "verified": True,
-        "method": method,
-        "verified_at": _now(),
-    }, ensure_ascii=False, indent=2)
-
-
-# ─────────────────────────────────────────────────────────────
-# 상태 변경 도구 (permission_level: high — 본인 확인 + 정책 검증 선행)
+# 상태 변경 도구 (permission_level: high — 정책 검증 선행)
+# 본 도메인의 채팅 세션은 진입 시점에 이미 채널 인증된 고객과의 대화로 가정한다.
+# 따라서 별도의 본인 확인 도구는 두지 않으며, 민감 작업 전에는 정책 조회·정책 한도·
+# 사유 검증·기록을 통한 보호선이 작동한다.
 # ─────────────────────────────────────────────────────────────
 @mcp.tool(
     name="fund_transfer", title="송금 실행",
