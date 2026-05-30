@@ -4,12 +4,12 @@
 Inputs:
   - configs/<agent>.yml                                       (llm/runner/paths/mcp/memory)
   - outputs/agent_profiles/<agent>/<date>/agent_profile.yaml  (tool schema)
-  - outputs/tasks/<agent>/<date>/tasks.jsonl                  (실행할 task들)
+  - outputs/tasks/<agent>/<profile_date>/<generated_date>/tasks.jsonl  (실행할 task들, v3)
   - mcp_servers/<agent>/server.py                             (도구 함수 + lifecycle)
 
 Outputs:
-  - outputs/logs/<agent>/<date>/<scenario_id>.jsonl           (per-scenario trace)
-  - outputs/ltm/<agent>/<date>/<case_id>/<S>/                 (시나리오별 LTM 상태 보존)
+  - outputs/logs/<agent>/<profile_date>/<generated_date>/<scenario_id>.jsonl   (per-scenario trace)
+  - outputs/ltm/<agent>/<profile_date>/<generated_date>/<sub_id>/<S>/          (시나리오별 LTM 상태)
 
 흐름:
   1) config + agent_profile + tasks.jsonl 로드
@@ -338,15 +338,15 @@ def run_turn_gemini(*, client, model: str, system_prompt: str,
 def run_one_task(*, task: Dict, system_prompt: str, agent_profile: dict,
                  llm_cfg: dict, runner_cfg: dict, repo_root: Path,
                  ltm_root: Path, logs_root: Path, server_module,
-                 seed_index_dir: Path, date_str: str,
+                 seed_index_dir: Path, profile_date: str, generated_date: str,
                  tool_dispatch: Dict[str, Callable]) -> bool:
     task_id = task["id"]
-    case_id = task["case_id"]
+    sub_id = task["sub_id"]
     agent = task["agent"]
     s_part = task_id.split("-")[-1]   # 예: "S1"
 
     # 1. LTM 시나리오 디렉토리 준비 (시드 복사)
-    scenario_ltm_dir = ltm_root / agent / date_str / case_id / s_part
+    scenario_ltm_dir = ltm_root / agent / profile_date / generated_date / sub_id / s_part
     if scenario_ltm_dir.exists():
         shutil.rmtree(scenario_ltm_dir)
     shutil.copytree(seed_index_dir, scenario_ltm_dir)
@@ -355,7 +355,7 @@ def run_one_task(*, task: Dict, system_prompt: str, agent_profile: dict,
     server_module.switch_ltm_path(scenario_ltm_dir)
 
     # 3. log 파일 준비
-    log_dir = logs_root / agent / date_str
+    log_dir = logs_root / agent / profile_date / generated_date
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / f"{task_id}.jsonl"
 
@@ -388,7 +388,7 @@ def run_one_task(*, task: Dict, system_prompt: str, agent_profile: dict,
 
             log_write({
                 "type": "meta",
-                "task_id": task_id, "case_id": case_id,
+                "task_id": task_id, "sub_id": sub_id,
                 "threat_id": task.get("threat_id"),
                 "threat_name": task.get("threat_name"),
                 "injection_vector": task.get("injection_vector"),
@@ -448,8 +448,10 @@ def main():
     parser.add_argument("--agent", required=True, help="Agent ID")
     parser.add_argument("--date", default=None, help="Profile/tasks 날짜 (YYYY-MM-DD). 생략 시 latest")
     parser.add_argument("--threat", default=None, help="특정 위협만 (예: T1)")
-    parser.add_argument("--case", default=None, help="특정 case만 (예: T1-C1)")
-    parser.add_argument("--scenario", default=None, help="특정 시나리오만 (예: T1-C1-S1)")
+    parser.add_argument("--sub", default=None, help="특정 sub-scenario만 (예: T1-S1)")
+    parser.add_argument("--scenario", default=None, help="특정 시나리오만 (예: T1-S1-S1)")
+    parser.add_argument("--generated-date", default=None,
+                        help="시나리오 생성 날짜 (YYYY-MM-DD). 생략 시 최신 자동 감지.")
     parser.add_argument("--repo-root", default=str(DEFAULT_REPO_ROOT))
     parser.add_argument("--configs-dir", default=str(DEFAULT_CONFIGS_DIR))
     parser.add_argument("--sleep", type=float, default=0.0, help="task 간 대기 (초)")
@@ -482,8 +484,24 @@ def main():
     else:
         system_prompt = agent_profile.get("system_prompt", "")
 
-    # 4. tasks.jsonl
-    tasks_path = DEFAULT_TASKS_ROOT / args.agent / profile_date / "tasks.jsonl"
+    # 4. tasks.jsonl (v3 경로: <profile_date>/<generated_date>/tasks.jsonl)
+    profile_tasks_root = DEFAULT_TASKS_ROOT / args.agent / profile_date
+    if not profile_tasks_root.exists():
+        print(f"[ERROR] tasks dir not found: {profile_tasks_root}", file=sys.stderr)
+        sys.exit(1)
+
+    # generated_date 자동 감지 (가장 최신)
+    if args.generated_date:
+        generated_date = args.generated_date
+    else:
+        gen_dates = sorted([d.name for d in profile_tasks_root.iterdir()
+                            if d.is_dir() and re.match(r"^\d{4}-\d{2}-\d{2}$", d.name)])
+        if not gen_dates:
+            print(f"[ERROR] no generated_date dir found under {profile_tasks_root}", file=sys.stderr)
+            sys.exit(1)
+        generated_date = gen_dates[-1]
+
+    tasks_path = profile_tasks_root / generated_date / "tasks.jsonl"
     if not tasks_path.exists():
         print(f"[ERROR] tasks.jsonl not found: {tasks_path}", file=sys.stderr)
         sys.exit(1)
@@ -492,13 +510,13 @@ def main():
     tasks = all_tasks
     if args.threat:
         tasks = [t for t in tasks if t.get("threat_id") == args.threat]
-    if args.case:
-        tasks = [t for t in tasks if t.get("case_id") == args.case]
+    if args.sub:
+        tasks = [t for t in tasks if t.get("sub_id") == args.sub]
     if args.scenario:
         tasks = [t for t in tasks if t.get("id") == args.scenario]
     if not tasks:
         print(f"[ERROR] no tasks matched filters "
-              f"(threat={args.threat}, case={args.case}, scenario={args.scenario})",
+              f"(threat={args.threat}, sub={args.sub}, scenario={args.scenario})",
               file=sys.stderr)
         sys.exit(1)
 
@@ -521,7 +539,7 @@ def main():
     if not logs_root.is_absolute():
         logs_root = repo_root / logs_root
 
-    print(f"[INFO] agent={args.agent} profile_date={profile_date}")
+    print(f"[INFO] agent={args.agent} profile_date={profile_date} generated_date={generated_date}")
     print(f"[INFO] tasks={len(tasks)} (filtered from {len(all_tasks)})")
     print(f"[INFO] llm={llm_cfg.get('provider')}/{llm_cfg.get('model')}")
     print(f"[INFO] logs_root={logs_root}")
@@ -540,7 +558,8 @@ def main():
                 llm_cfg=llm_cfg, runner_cfg=runner_cfg, repo_root=repo_root,
                 ltm_root=DEFAULT_LTM_ROOT, logs_root=logs_root,
                 server_module=server_module, seed_index_dir=seed_index_dir,
-                date_str=profile_date, tool_dispatch=tool_dispatch,
+                profile_date=profile_date, generated_date=generated_date,
+                tool_dispatch=tool_dispatch,
             )
             if success:
                 ok_count += 1

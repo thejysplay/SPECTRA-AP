@@ -17,3 +17,10 @@ API_Key/
 # 참조 문서 (개인 참고용)
 Agentic-AI-Threats-and-Mitigations-*.pdf
 SPECTRA-AP_multiturn_design.md
+ATLAS-*.yaml
+
+# backup (코드·spec v1 폐기본)
+*.v1.bak.*
+*.bak
+*.bak.json
+*.bak.py
