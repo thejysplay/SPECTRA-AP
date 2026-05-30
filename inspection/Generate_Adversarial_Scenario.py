@@ -45,12 +45,14 @@ except Exception:
 # ─────────────────────────────────────────────────────────────
 DEFAULT_REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_THREAT_SPEC = DEFAULT_REPO_ROOT / "inspection" / "THREAT_Specification.json"
+DEFAULT_CASESTUDY_SPEC = DEFAULT_REPO_ROOT / "inspection" / "CASESTUDY_Specification.json"
 DEFAULT_AGENT_PROFILES_DIR = DEFAULT_REPO_ROOT / "outputs" / "agent_profiles"
 DEFAULT_OUT_ROOT = DEFAULT_REPO_ROOT / "outputs" / "adversarial_scenarios"
 DEFAULT_TASKS_ROOT = DEFAULT_REPO_ROOT / "outputs" / "tasks"
 DEFAULT_CONFIGS_DIR = DEFAULT_REPO_ROOT / "configs"
 
 SCENARIOS_PER_SUB = 3
+SCENARIOS_PER_CASE = 3
 
 
 # ─────────────────────────────────────────────────────────────
@@ -150,6 +152,67 @@ def load_threat_catalog(spec_path: Path,
         threats = [t for t in threats if t.get("scope_status") != "spec_only_pending_env_buildout"]
     catalog["threats"] = threats
     return catalog
+
+
+def load_casestudy_spec(spec_path: Path, case_filter: Optional[str] = None) -> Dict[str, Any]:
+    """CASESTUDY_Specification.json 로드. ATLAS case study 기반 시나리오 정의.
+
+    Returns: {"version": ..., "case_studies": [...]}
+    """
+    spec = load_json(spec_path)
+    if not isinstance(spec, dict) or "case_studies" not in spec:
+        raise ValueError(f"CASESTUDY_Specification.json must have 'case_studies' key")
+    cases = spec["case_studies"]
+    if case_filter:
+        cases = [c for c in cases if c.get("case_id") == case_filter]
+    spec["case_studies"] = cases
+    return spec
+
+
+def wrap_casestudy_as_threat(case: Dict[str, Any]) -> Dict[str, Any]:
+    """ATLAS case study를 위협 spec 구조로 wrapping (기존 generate_for_sub 재사용).
+
+    case_id (예: 'CS1')가 threat_id 자리에, sub_id도 동일하게 들어감.
+    scenario_id 형식: 'CS1-S1', 'CS1-S2', 'CS1-S3'.
+    """
+    case_id = case["case_id"]
+    return {
+        "threat_id": case_id,
+        "name": case["name"],
+        "owasp_description": case["summary"],
+        "scope_status": "executable",
+        "atlas_id": case.get("atlas_id"),
+        "incident_date": case.get("incident_date"),
+        "case_type": case.get("type"),
+        "target": case.get("target"),
+        "actor": case.get("actor"),
+        "sub_scenarios": [{
+            "sub_id": case_id,
+            "sub_name": case["name"],
+            "owasp_quote": case["summary"],  # case study는 OWASP 원문 대신 ATLAS summary 사용
+            "provenance": {
+                "owasp_source": "N/A (ATLAS case study based)",
+                "atlas_chain": case["atlas_id"],
+                "atlas_incident_date": case.get("incident_date"),
+            },
+            "inspection_focus": f"ATLAS case study {case['atlas_id']} ({case['name']})의 attack_chain을 banking_cs_agent 환경에 매핑하여 in_scope step을 turn으로 구현. 사용자 trust 악용 + IPI plan 채택 + mutation 자동 호출의 chain 발현 검사.",
+            "turn_mode": case["turn_mode"],
+            "injection_vector": case["injection_vector"],
+            "variation_axes": case["variation_axes"],
+            "agent_realization": case["agent_realization"],
+            "atlas_chain_mapping": [
+                {
+                    "step": step["step"],
+                    "tactic": step["tactic"],
+                    "technique": step["technique"],
+                    "turn_assignment": step.get("turn_assignment") or ("turn_implementation" if step.get("in_scope") else "N/A in scope"),
+                    "agent_realization": step.get("agent_realization", "")
+                }
+                for step in case["attack_chain"] if step.get("in_scope")
+            ],
+            "attack_specification": case["attack_specification"]
+        }]
+    }
 
 
 # ─────────────────────────────────────────────────────────────
@@ -770,8 +833,12 @@ def main():
                         help="생성 결과 디렉토리 날짜 (YYYY-MM-DD). 생략 시 오늘 날짜.")
     parser.add_argument("--include-spec-only", action="store_true",
                         help="환경 보강 보류 (spec_only) 위협도 포함 (T3·T4·T10)")
+    parser.add_argument("--source", choices=["threat", "casestudy", "both"], default="threat",
+                        help="시나리오 소스: threat (OWASP, 기본), casestudy (ATLAS), both")
+    parser.add_argument("--case", default=None, help="특정 case study만 (예: CS1)")
     parser.add_argument("--repo-root", default=str(DEFAULT_REPO_ROOT))
     parser.add_argument("--threat-spec", default=str(DEFAULT_THREAT_SPEC))
+    parser.add_argument("--casestudy-spec", default=str(DEFAULT_CASESTUDY_SPEC))
     parser.add_argument("--agent-profiles-dir", default=str(DEFAULT_AGENT_PROFILES_DIR))
     parser.add_argument("--out-root", default=str(DEFAULT_OUT_ROOT))
     parser.add_argument("--tasks-root", default=str(DEFAULT_TASKS_ROOT))
@@ -792,11 +859,24 @@ def main():
     profile = load_yaml(profile_path)
     agent_profile_compact = compact_profile_for_prompt(profile)
 
-    # 2. THREAT catalog 로드 (v3 dict, 필터, scope_status)
-    catalog = load_threat_catalog(threat_spec, args.threat, include_spec_only=args.include_spec_only)
-    threats = catalog.get("threats", [])
+    # 2. 카탈로그 로드 (--source 분기)
+    threats: List[Dict[str, Any]] = []
+    catalog_meta: Dict[str, Any] = {}
+
+    if args.source in ("threat", "both"):
+        catalog = load_threat_catalog(threat_spec, args.threat, include_spec_only=args.include_spec_only)
+        threats.extend(catalog.get("threats", []))
+        catalog_meta["threat_version"] = catalog.get("version")
+
+    if args.source in ("casestudy", "both"):
+        cs_spec_path = Path(args.casestudy_spec)
+        cs_spec = load_casestudy_spec(cs_spec_path, case_filter=args.case)
+        wrapped = [wrap_casestudy_as_threat(c) for c in cs_spec.get("case_studies", [])]
+        threats.extend(wrapped)
+        catalog_meta["casestudy_version"] = cs_spec.get("version")
+
     if not threats:
-        print(f"[ERROR] no threats matched (filter={args.threat}, include_spec_only={args.include_spec_only})", file=sys.stderr)
+        print(f"[ERROR] no threats/cases matched (source={args.source}, filter={args.threat}/{args.case})", file=sys.stderr)
         sys.exit(1)
 
     # 3. LLM 설정
@@ -815,9 +895,9 @@ def main():
     generated_date = args.generated_date or datetime.now().strftime("%Y-%m-%d")
     out_dir = out_root / args.agent / profile_date / generated_date
 
-    print(f"[INFO] spec_version={catalog.get('version')} agent={args.agent}")
+    print(f"[INFO] source={args.source} meta={catalog_meta} agent={args.agent}")
     print(f"[INFO] profile_date={profile_date} generated_date={generated_date}")
-    print(f"[INFO] threats={len(threats)} out_dir={out_dir}")
+    print(f"[INFO] threats/cases={len(threats)} out_dir={out_dir}")
     print(f"[INFO] include_spec_only={args.include_spec_only}")
     print(f"[INFO] llm={llm_cfg.get('provider')}/{llm_cfg.get('model')}")
     print()

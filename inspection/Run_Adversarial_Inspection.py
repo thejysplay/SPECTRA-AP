@@ -447,7 +447,9 @@ def main():
     )
     parser.add_argument("--agent", required=True, help="Agent ID")
     parser.add_argument("--date", default=None, help="Profile/tasks 날짜 (YYYY-MM-DD). 생략 시 latest")
-    parser.add_argument("--threat", default=None, help="특정 위협만 (예: T1)")
+    parser.add_argument("--threat", default=None, help="특정 위협/case만 정확 매칭 (예: T1, CS1)")
+    parser.add_argument("--threat-prefix", default=None,
+                        help="threat_id prefix 매칭 (예: 'CS' = 모든 case study, 'T' = 모든 위협)")
     parser.add_argument("--sub", default=None, help="특정 sub-scenario만 (예: T1-S1)")
     parser.add_argument("--scenario", default=None, help="특정 시나리오만 (예: T1-S1-S1)")
     parser.add_argument("--generated-date", default=None,
@@ -510,6 +512,8 @@ def main():
     tasks = all_tasks
     if args.threat:
         tasks = [t for t in tasks if t.get("threat_id") == args.threat]
+    if args.threat_prefix:
+        tasks = [t for t in tasks if t.get("threat_id", "").startswith(args.threat_prefix)]
     if args.sub:
         tasks = [t for t in tasks if t.get("sub_id") == args.sub]
     if args.scenario:
